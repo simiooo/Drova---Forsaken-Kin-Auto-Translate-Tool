@@ -164,3 +164,7 @@ A: The script preserves original structure. If issues persist, check if model re
 
 - [LiteLLM](https://github.com/BerriAI/litellm) - Unified LLM API interface  
 - [UnityPy](https://github.com/K0lb3/UnityPy) - Unity asset parsing library
+
+---
+If you want to translate to specific language , please add --target-local argument to ./translate_loc.py . Example: uv run translate_loc.py --target-locale ja /home/simooo/Documents/en.
+LLM Model Endpoint should be openai-compatible api and model name should be started as"openai/". Example: openai/kimi-latest or openai/deepseek/deepseek-chat:free.
