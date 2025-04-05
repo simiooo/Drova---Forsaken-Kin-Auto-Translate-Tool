@@ -1,10 +1,12 @@
 [project]
-name = "game-loc-translate"
+name = "drova-loc-translate"
 version = "0.1.0"
-description = "Add your description here"
+description = "Auto localization tool for drova powered by Kimi or Deepseek"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "argparse>=1.4.0",
+    "dotenv>=0.9.9",
     "httpx-socks>=0.10.0",
     "litellm>=1.65.1",
     "unitypy>=1.21.3",
