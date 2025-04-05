@@ -115,12 +115,13 @@ uv run translate_loc.py srcAssets
 Override `.env` parameters via command line:
 
 ```bash
-uv run translate_loc.py srcAssets \
+uv run srcAssets \
   --target-path outputAssets \
   --api-key sk-xxx \
   --model openai/gpt-3.5-turbo \
   --chunk-size 2000 \
-  --concurrency 10
+  --concurrency 10 \
+    translate_loc.py
 ```
 
 ### Parameters
