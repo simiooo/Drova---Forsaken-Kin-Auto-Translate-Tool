@@ -23,6 +23,7 @@ class Config:
         self.concurrency = args.concurrency or int(os.getenv("CONCURRENCY", 10))
         self.system_prompt = SYSTEM_PROMPT
         self.loc_pattern = re.compile(r'.*\.loc$')
+        self.localization_target_pattern = re.compile(r'(.+)_en\.loc$')
 
 # ------------------- 默认系统提示词 -------------------
 SYSTEM_PROMPT = """
@@ -52,8 +53,9 @@ def get_targetpath(src_file, src_root, dst_root):
     rel_path = os.path.relpath(src_file, src_root)
     return os.path.join(dst_root, rel_path)
 
-def write_file_preserve_structure(data, src_file, src_root, dst_root):
+def write_file_preserve_structure(data, src_file, src_root, dst_root,config):
     dst_file = get_targetpath(src_file, src_root, dst_root)
+    dst_file = re.sub(config.localization_target_pattern.sub,r"\1_zh_CN.loc",dst_file)
     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
     with open(dst_file, "w", encoding="utf-8") as f:
         f.write(data)
