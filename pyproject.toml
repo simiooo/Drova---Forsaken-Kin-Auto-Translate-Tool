@@ -1,0 +1,11 @@
+[project]
+name = "game-loc-translate"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx-socks>=0.10.0",
+    "litellm>=1.65.1",
+    "unitypy>=1.21.3",
+]
