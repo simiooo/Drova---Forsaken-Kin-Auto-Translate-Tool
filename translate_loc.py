@@ -143,8 +143,8 @@ async def main():
     parser.add_argument("--log-file", help="日志文件路径")
     parser.add_argument("--chunk-size", type=int, help="单段最大字符数")
     parser.add_argument("--concurrency", type=int, help="最大并发数")
-    parser.add_argument("--source-locale", type=int, help="待翻译语言")
-    parser.add_argument("--target-locale", type=int, help="翻译结果语言")
+    parser.add_argument("--source-locale", help="待翻译语言")
+    parser.add_argument("--target-locale", help="翻译结果语言")
 
     args = parser.parse_args()
     config = Config(args)
