@@ -1,3 +1,7 @@
+** LLM Model Endpoint should be openai-compatible api and model name should be started as"openai/". Example: openai/kimi-latest or openai/deepseek/deepseek-chat:free. **
+
+---
+
 # 🧩 Drova Toolkit: Font Replacement + Text Translation
 
 This project provides two utility scripts to help you:
@@ -90,8 +94,8 @@ Create `.env` file in project root with:
 
 ```env
 API_KEY=your_api_key
-MODEL=openai/gpt-3.5-turbo
-API_BASE=https://api.openai.com/v1
+MODEL=openai/kimi-latest
+API_BASE=https://api.moonshot.cn/v1
 TARGET_PATH=./outputAssets
 CHUNK_SIZE=2000
 CONCURRENCY=10
@@ -126,8 +130,8 @@ uv run translate_loc.py srcAssets \
 | `source_dir`         | Required. Path to `.loc` directory                 |
 | `--target-path`      | Output directory, default: `./translated`          |
 | `--api-key`          | API key for translation model                      |
-| `--model`            | Model name (supports openai/kimi/etc), default: openai/gpt-3.5-turbo |
-| `--api-base`         | API endpoint (e.g., Moonshot/OpenAI)               |
+| `--model`            | Model name (supports openai/kimi/etc), default: openai/kimi-latest |
+| `--api-base`         | API endpoint (e.g., https://api.moonshot.cn/v1)               |
 | `--source-locale`    | Source language locale, default: en_US             |
 | `--target-locale`    | Target language locale, default: zh_CN            |
 | `--chunk-size`       | Max characters per chunk, default: 2000           |
