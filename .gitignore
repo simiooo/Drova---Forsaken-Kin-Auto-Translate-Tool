@@ -1,3 +1,5 @@
 .venv
 outputAssets/**/*
 srcAssets/**/*
+translated/**/*
+execution.log

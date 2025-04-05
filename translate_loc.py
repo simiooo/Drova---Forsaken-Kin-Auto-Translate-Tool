@@ -20,15 +20,27 @@ class Config:
         self.target_path = args.target_path or os.getenv("TARGET_PATH", "./translated")
         self.log_file = args.log_file or os.getenv("LOG_FILE", "execution.log")
         self.chunk_size = args.chunk_size or int(os.getenv("CHUNK_SIZE", 2000))
-        self.concurrency = args.concurrency or int(os.getenv("CONCURRENCY", 10))
-        self.system_prompt = SYSTEM_PROMPT
+        self.concurrency = args.concurrency or int(os.getenv("CONCURRENCY", 2))
+        self.source_locale = args.source_locale or (os.getenv("SOURCE_LOCALE", "en_US"))
+        self.target_locale = args.target_locale or (os.getenv("TARGET_LOCALE", "zh_CN"))
+        self.system_prompt = system_prompt_create(self.source_locale, self.target_locale)
         self.loc_pattern = re.compile(r'.*\.loc$')
-        self.localization_target_pattern = re.compile(r'(.+)_en\.loc$')
+        self.localization_target_pattern = re.compile(r'(.+)_.+\.loc$')
+        
 
 # ------------------- 默认系统提示词 -------------------
-SYSTEM_PROMPT = """
-你是drova这款游戏的翻译编译器，请帮我将给定的的英文输入翻译为中文输出。人名与地名不需要被翻译。请严格作为编译器执行，返回跟原编码格式相同的格式，不要输出任何无关内容。\n不要尝试修复、删除任何看起来错误的语法，如： \"Plh_35 {\"、\"Plh_35 { The chains are firmly aff\"、\"}\" \n  \n只需要做好自己翻译的工作即可。 \n *** 示例输入:\nAchievement_ImmersiveMod_name { Iron }\n ***示例输出：\nAchievement_ImmersiveMod_name { 铁 }。\n请结合这款游戏的背景进行翻译，这款游戏的背景如下：\"Drova - Forsaken Kin\" 是一款受经典黑暗风格和凯尔特神话神秘魅力启发的像素风格动作角色扮演游戏。进入一个精心制作的开放世界，你的选择和行动将影响环境。一个社会发现了已经灭亡帝国的力量：捕捉并支配掌管自然的灵魂。然而，余下的灵魂因为愤怒而分裂。你将站在哪一边？入两个阵营之一，每个阵营都有其自己的价值观并追求各自的目标。你的选择将对整个游戏产生影响，并改变整个故事。所有的决定都伴随着代价。遇见导师并学习各种技能，但也要小心敌人和背叛。危险的景观中开辟自己的道路，完成任务、进行交易、收集和制作装备。你将从无到有，从无名之辈成长起来。研究周围的环境，利用周围的线索揭示谜团并变得更强。只有你的战斗技能才能将你与必然的死亡隔开。索自然，封印掌控它的灵魂力量。学会如何将它们为你所用，但也要准备好迎接这些灵魂的愤怒，它们的愤怒将在你周围的世界中显现。
-""".strip()
+def system_prompt_create(source_locale, target_locale):
+    return f"""
+    你是drova这款游戏的翻译编译器，请帮我将给定的的{source_locale}输入翻译为{target_locale}输出。人名与地名不需要被翻译。请严格作为编译器执行，返回跟原编码格式相同的格式，不要输出任何无关内容。
+    不要尝试修复、删除任何看起来错误的语法，如： "Plh_35 {{"、"Plh_35 {{ The chains are firmly aff"、"}}" 
+    只需要做好自己翻译的工作即可。 
+    *** 示例输入:
+    Achievement_ImmersiveMod_name {{ Iron }}
+    ***示例输出：
+    Achievement_ImmersiveMod_name {{ 铁 }}。
+    请结合这款游戏的背景进行翻译，这款游戏的背景如下：
+    "Drova - Forsaken Kin" 是一款受经典黑暗风格和凯尔特神话神秘魅力启发的像素风格动作角色扮演游戏。进入一个精心制作的开放世界，你的选择和行动将影响环境。一个社会发现了已经灭亡帝国的力量：捕捉并支配掌管自然的灵魂。然而，余下的灵魂因为愤怒而分裂。你将站在哪一边？入两个阵营之一，每个阵营都有其自己的价值观并追求各自的目标。你的选择将对整个游戏产生影响，并改变整个故事。所有的决定都伴随着代价。遇见导师并学习各种技能，但也要小心敌人和背叛。危险的景观中开辟自己的道路，完成任务、进行交易、收集和制作装备。你将从无到有，从无名之辈成长起来。研究周围的环境，利用周围的线索揭示谜团并变得更强。只有你的战斗技能才能将你与必然的死亡隔开。索自然，封印掌控它的灵魂力量。学会如何将它们为你所用，但也要准备好迎接这些灵魂的愤怒，它们的愤怒将在你周围的世界中显现。
+    """.strip()
 
 # ------------------- 日志初始化 -------------------
 def init_logging(log_file):
@@ -55,7 +67,7 @@ def get_targetpath(src_file, src_root, dst_root):
 
 def write_file_preserve_structure(data, src_file, src_root, dst_root,config):
     dst_file = get_targetpath(src_file, src_root, dst_root)
-    dst_file = re.sub(config.localization_target_pattern.sub,r"\1_zh_CN.loc",dst_file)
+    dst_file = re.sub(config.localization_target_pattern,f"\\1_{config.target_locale}.loc",dst_file)
     os.makedirs(os.path.dirname(dst_file), exist_ok=True)
     with open(dst_file, "w", encoding="utf-8") as f:
         f.write(data)
@@ -109,7 +121,7 @@ async def file_progress(file, source_dir, config, semaphore, file_cnt):
                 tasks = [task_progress(c, config, semaphore) for c in chunks if c.strip()]
                 translated_chunks = await asyncio.gather(*tasks)
                 translated_text = "\n\n".join(translated_chunks)
-                write_file_preserve_structure(translated_text, file.path, source_dir, config.target_path)
+                write_file_preserve_structure(translated_text, file.path, source_dir, config.target_path,config)
                 logging.info(f"----- 结束处理第{file_cnt[0]}个文件 {file.name} -----")
 
 async def traval(dir_path, source_dir, config, semaphore, file_cnt):
@@ -131,6 +143,8 @@ async def main():
     parser.add_argument("--log-file", help="日志文件路径")
     parser.add_argument("--chunk-size", type=int, help="单段最大字符数")
     parser.add_argument("--concurrency", type=int, help="最大并发数")
+    parser.add_argument("--source-locale", type=int, help="待翻译语言")
+    parser.add_argument("--target-locale", type=int, help="翻译结果语言")
 
     args = parser.parse_args()
     config = Config(args)
