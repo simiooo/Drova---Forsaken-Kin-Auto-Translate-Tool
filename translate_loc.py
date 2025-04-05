@@ -20,7 +20,7 @@ class Config:
         self.target_path = args.target_path or os.getenv("TARGET_PATH", "./translated")
         self.log_file = args.log_file or os.getenv("LOG_FILE", "execution.log")
         self.chunk_size = args.chunk_size or int(os.getenv("CHUNK_SIZE", 2000))
-        self.concurrency = args.concurrency or int(os.getenv("CONCURRENCY", 2))
+        self.concurrency = args.concurrency or int(os.getenv("CONCURRENCY", 10))
         self.source_locale = args.source_locale or (os.getenv("SOURCE_LOCALE", "en_US"))
         self.target_locale = args.target_locale or (os.getenv("TARGET_LOCALE", "zh_CN"))
         self.system_prompt = system_prompt_create(self.source_locale, self.target_locale)

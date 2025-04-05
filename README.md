@@ -1,27 +1,25 @@
+# 🧩 Drova Toolkit: Font Replacement + Text Translation
 
+This project provides two utility scripts to help you:
 
-# 🧩 Drova 工具集：字体替换 + 文本翻译
+- 🧷 Replace fonts in Unity game asset files (`replace_fonts.py`)  
+- 🌐 Automatically translate `.loc` text resource files (`translate_loc.py`)
 
-本项目提供两个实用脚本，帮助你：
-
-- 🧷 替换 Unity 游戏资源文件中的字体（`replace_fonts.py`）  
-- 🌐 自动翻译 `.loc` 文本资源文件（`translate_loc.py`）
-
-使用 [uv](https://github.com/astral-sh/uv) 管理依赖和运行环境，安装简单、运行迅速，适合 **无编程基础用户** 使用！
+Managed by [uv](https://github.com/astral-sh/uv) for dependency management and environment setup. Simple installation and fast execution, suitable for **users without programming experience**!
 
 ---
 
-## 📦 一步步开始
+## 📦 Step-by-Step Guide
 
-### ✅ 第一步：安装 Python（如果尚未安装）
+### ✅ Step 1: Install Python (if not installed)
 
-从官网下载安装：[https://www.python.org/downloads/](https://www.python.org/downloads/)
+Download from official website: [https://www.python.org/downloads/](https://www.python.org/downloads/)
 
-📌 **务必勾选** ✅ Add Python to PATH
+📌 **Mandatory**: ✅ Check "Add Python to PATH" during installation
 
 ---
 
-### ✅ 第二步：安装 `uv`
+### ✅ Step 2: Install `uv`
 
 ```bash
 pip install uv
@@ -29,9 +27,9 @@ pip install uv
 
 ---
 
-### ✅ 第三步：安装依赖
+### ✅ Step 3: Install Dependencies
 
-在项目目录下执行：
+Execute in project directory:
 
 ```bash
 uv pip install -r pyproject.toml
@@ -39,28 +37,28 @@ uv pip install -r pyproject.toml
 
 ---
 
-## 📁 项目结构说明
+## 📁 Project Structure
 
 ```
 drova-tools/
-├── pyproject.toml          # 项目依赖定义
-├── uv.lock                 # 锁定的依赖版本（自动生成）
-├── README.md               # 项目说明文档
-├── replace_fonts.py        # Unity 字体替换脚本
-├── translate_loc.py        # Drova 文本翻译脚本
-├── srcAssets/              # 原始 Unity .assets 文件目录
-├── outputAssets/           # 处理后输出目录
+├── pyproject.toml          # Project dependencies
+├── uv.lock                 # Locked dependency versions (auto-generated)
+├── README.md               # Documentation
+├── replace_fonts.py        # Unity font replacement script
+├── translate_loc.py        # Drova text translation script
+├── srcAssets/              # Original Unity .assets directory
+├── outputAssets/           # Processed output directory
 ```
 
 ---
 
-## 🖋️ 字体替换工具（replace_fonts.py）
+## 🖋️ Font Replacement Tool (replace_fonts.py)
 
-### 🎯 功能
+### 🎯 Features
 
-将 Unity 游戏资源中的指定字体（如 LiberationSans）替换为你喜欢的字体（如 思源黑体）。
+Replace specified fonts (e.g., LiberationSans) in Unity game assets with your preferred fonts (e.g., Source Han Sans).
 
-### ▶️ 使用示例
+### ▶️ Usage Example
 
 ```bash
 uv run python replace_fonts.py \
@@ -69,29 +67,29 @@ uv run python replace_fonts.py \
   --font ./myfont.ttf
 ```
 
-### 可选参数说明
+### Optional Parameters
 
-| 参数         | 说明                                   |
-|--------------|----------------------------------------|
-| `--input`    | 要处理的 Unity `.assets` 文件路径     |
-| `--output`   | 替换后的输出文件路径                  |
-| `--font`     | 你要替换的新字体 `.ttf` 或 `.otf` 文件 |
-| `--name`     | （可选）要替换的字体名，默认：LiberationSans |
+| Parameter      | Description                                   |
+|----------------|-----------------------------------------------|
+| `--input`      | Path to Unity `.assets` file to process      |
+| `--output`     | Output path for modified file                |
+| `--font`       | New font file (`.ttf` or `.otf`)             |
+| `--name`       | (Optional) Font name to replace, default: LiberationSans |
 
 ---
 
-## 🌍 文本翻译工具（translate_loc.py）
+## 🌍 Text Translation Tool (translate_loc.py)
 
-### 🎯 功能
+### 🎯 Features
 
-自动翻译 Drova 的 `.loc` 文件内容（英文 → 中文），保留原格式，支持并发处理。
+Automatically translate Drova's `.loc` files (EN → CN) while preserving original formatting. Supports concurrent processing.
 
-### 🪧 先配置 `.env` 文件（推荐）
+### 🪧 Configure `.env` File (Recommended)
 
-在项目根目录下新建 `.env` 文件，内容如下：
+Create `.env` file in project root with:
 
 ```env
-API_KEY=你的API密钥
+API_KEY=your_api_key
 MODEL=openai/gpt-3.5-turbo
 API_BASE=https://api.openai.com/v1
 TARGET_PATH=./outputAssets
@@ -104,13 +102,13 @@ TARGET_LOCALE=zh_CN
 
 ---
 
-### ▶️ 使用示例
+### ▶️ Usage Example
 
 ```bash
 uv run translate_loc.py srcAssets
 ```
 
-也可以用命令行参数覆盖 `.env`：
+Override `.env` parameters via command line:
 
 ```bash
 uv run translate_loc.py srcAssets \
@@ -121,48 +119,48 @@ uv run translate_loc.py srcAssets \
   --concurrency 10
 ```
 
-### 参数说明
+### Parameters
 
-| 参数             | 说明                                         |
-|------------------|----------------------------------------------|
-| `source_dir`     | 必填，要翻译的 `.loc` 文件夹路径            |
-| `--target-path`  | 可选，翻译结果保存目录，默认：`./translated`|
-| `--api-key`      | 可选，语言模型的 API 密钥                    |
-| `--model`        | 可选，模型名称（支持 openai/kimi 等）       |
-| `--api-base`     | 可选，API 地址（如 Moonshot 或 OpenAI）    |
-| `--source-locale`| 可选，待翻译语言locale,默认:en_US            |
-| `--target-locale`| 可选，结果翻译语言locale,默认:zh_CN         |
-| `--chunk-size`   | 可选，单段最大字符数，默认 2000              |
-| `--concurrency`  | 可选，同时翻译的任务数量，默认 10           |
-| `--log-file`     | 可选，日志输出路径，默认 `execution.log`    |
+| Parameter            | Description                                         |
+|----------------------|-----------------------------------------------------|
+| `source_dir`         | Required. Path to `.loc` directory                 |
+| `--target-path`      | Output directory, default: `./translated`          |
+| `--api-key`          | API key for translation model                      |
+| `--model`            | Model name (supports openai/kimi/etc), default: openai/gpt-3.5-turbo |
+| `--api-base`         | API endpoint (e.g., Moonshot/OpenAI)               |
+| `--source-locale`    | Source language locale, default: en_US             |
+| `--target-locale`    | Target language locale, default: zh_CN            |
+| `--chunk-size`       | Max characters per chunk, default: 2000           |
+| `--concurrency`      | Concurrent translation tasks, default: 10         |
+| `--log-file`         | Log file path, default: `execution.log`           |
 
 ---
 
-## 💡 常见问题
+## 💡 FAQ
 
-### Q: 如何知道我要替换的字体名？
-A: 通常默认字体是 `LiberationSans`，你可以用脚本自动查找并输出。
+### Q: How to identify the font name to replace?
+A: Default is usually `LiberationSans`. The script can auto-detect and print found fonts.
 
-### Q: `.loc` 是什么格式？
-A: 游戏中的翻译资源文本，例如：
+### Q: What's the `.loc` format?
+A: Game localization resource format example:
 ```
 Quest_Intro { You have entered the forest }
 ```
 
-### Q: 翻译结果错乱？
-A: 脚本已尽量保留原结构。如仍有错乱，请检查模型响应是否偏离系统提示。
+### Q: Translation output is garbled?
+A: The script preserves original structure. If issues persist, check if model responses deviate from system prompts.
 
 ---
 
-## 🧠 建议拓展
+## 🧠 Suggested Improvements
 
-- ✅ 使用 GUI 界面封装功能
-- 🧪 增加 `.loc` 格式检查与回退机制
-- 📁 增加批量处理压缩包支持
+- ✅ Create GUI wrapper
+- 🧪 Add `.loc` format validation and fallback
+- 📁 Add batch processing for zip archives
 
 ---
 
-## 🧊 鸣谢
+## 🧊 Credits
 
-- [LiteLLM](https://github.com/BerriAI/litellm) - 通用大模型请求工具  
-- [UnityPy](https://github.com/K0lb3/UnityPy) - Unity 资源解析库  
+- [LiteLLM](https://github.com/BerriAI/litellm) - Unified LLM API interface  
+- [UnityPy](https://github.com/K0lb3/UnityPy) - Unity asset parsing library
