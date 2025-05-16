@@ -20,23 +20,27 @@ Managed by [uv](https://github.com/astral-sh/uv) for dependency management and e
 #### Windows
 Use irm to download the script and execute it with iex:
 
-
+```bash
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
 Changing the execution policy allows running a script from the internet.
 
 #### macOs and Linux:
 Use curl to download the script and execute it with sh:
 
-
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 If your system doesn't have curl, you can use wget:
 
-
+```bash
 wget -qO- https://astral.sh/uv/install.sh | sh
+```
 Request a specific version by including it in the URL:
 
-
+```bash
 curl -LsSf https://astral.sh/uv/0.7.4/install.sh | sh
+```
 ---
 
 ### ✅ Step 2: Install Dependencies and Python
