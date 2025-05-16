@@ -232,7 +232,7 @@ async def task_progress(data, config, semaphore, rate_limiter):
                             translated_names = second_res.get("translated_name", {})
                             if translated_names:
                                 cache_translated_key_pair.update(translated_names)
-                                with open("cache_map.json", "w") as outfile:
+                                with open("cache_map.json", "w", encoding="utf-8") as outfile:
                                     outfile.write(json.dumps(cache_translated_key_pair))
                         return second_res["content"]
                     return second_res["content"]
