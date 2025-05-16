@@ -3,3 +3,4 @@ outputAssets/**/*
 srcAssets/**/*
 translated/**/*
 execution.log
+cache_map.json

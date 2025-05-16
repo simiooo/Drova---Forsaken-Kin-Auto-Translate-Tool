@@ -15,31 +15,53 @@ Managed by [uv](https://github.com/astral-sh/uv) for dependency management and e
 
 ## 📦 Step-by-Step Guide
 
-### ✅ Step 1: Install Python (if not installed)
+### ✅ Step 1: Install `uv`
 
-Download from official website: [https://www.python.org/downloads/](https://www.python.org/downloads/)
+#### Windows
+Use irm to download the script and execute it with iex:
 
-📌 **Mandatory**: ✅ Check "Add Python to PATH" during installation
 
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+Changing the execution policy allows running a script from the internet.
+
+#### macOs and Linux:
+Use curl to download the script and execute it with sh:
+
+
+curl -LsSf https://astral.sh/uv/install.sh | sh
+If your system doesn't have curl, you can use wget:
+
+
+wget -qO- https://astral.sh/uv/install.sh | sh
+Request a specific version by including it in the URL:
+
+
+curl -LsSf https://astral.sh/uv/0.7.4/install.sh | sh
 ---
 
-### ✅ Step 2: Install `uv`
-
-```bash
-pip install uv
-```
-
----
-
-### ✅ Step 3: Install Dependencies
+### ✅ Step 2: Install Dependencies and Python
 
 Execute in project directory:
 
 ```bash
-uv pip install -r pyproject.toml
+uv sync
 ```
 
----
+### ✅ Step 3: Translate
+```bash
+uv run translate_loc.py \
+  --api-key "sk-xxx" \
+  --api-base "https://openrouter.ai/api/v1" \
+  --model openai/openai/gpt-4.1-mini \
+    "D:\steam\steamapps\common\Drova - Forsaken Kin\Drova_Data\StreamingAssets\Localization\en"
+```
+### Step 4: Inject Your language's font file
+```bash
+uv run python replace_fonts.py \
+  --input "D:\steam\steamapps\common\Drova - Forsaken Kin\Drova_Data\resources.assets" \
+  --output outputAssets/resources.assets \
+  --font ./myfont.ttf
+```
 
 ## 📁 Project Structure
 
@@ -116,11 +138,8 @@ Override `.env` parameters via command line:
 
 ```bash
 uv run translate_loc.py \
-  --target-path outputAssets \
   --api-key "sk-xxx" \
   --model openai/gpt-3.5-turbo \
-  --chunk-size 2000 \
-  --concurrency 10 \
     srcAssets
 ```
 
