@@ -56,9 +56,11 @@ uv sync
 uv run translate_loc.py \
   --api-key "sk-xxx" \
   --api-base "https://openrouter.ai/api/v1" \
+  --target-locale "zh_CN" \
   --model openai/openai/gpt-4.1-mini \
     "D:\steam\steamapps\common\Drova - Forsaken Kin\Drova_Data\StreamingAssets\Localization\en"
 ```
+
 ### Step 4: Inject Your language's font file
 ```bash
 uv run python replace_fonts.py \
