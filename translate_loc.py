@@ -80,7 +80,7 @@ def system_prompt_create(source_locale, target_locale):
     只需要做好自己翻译的工作即可。 
     *** 输出格式
     数据格式严格限制为json格式，json schema为{{content: string|null, translated_name: {{[key: string: string | null]}}}}。
-    content的值是翻译产物，translated_name的值是被翻译的人名与地名（可能为空json对象）。
+    content的值是翻译产物，translated_name的值是被翻译的人名与地名（可能为空json对象）。content中需要被转义处理的字符请一定转义，以免后续解析json的程序出错。
     如果待翻译文本中没有需要被翻译的人名与地名，请保持translated_name为空对象。不要输出任何markdown符号。
     *** 示例输入:
     Achievement_ImmersiveMod_name {{ Iron }}
