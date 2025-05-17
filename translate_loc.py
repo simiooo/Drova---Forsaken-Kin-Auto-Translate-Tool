@@ -13,10 +13,49 @@ from litellm.utils import trim_messages
 
 # ------------------- 加载 .env 配置 -------------------
 load_dotenv()
-cache_translated_key_pair = {}
-cache_translated_key_pair_lock = asyncio.Lock()
-def get_name_map(keys):
-    return {k: cache_translated_key_pair[k] for k in keys if k in cache_translated_key_pair}
+
+class TranslationCache:
+    def __init__(self, cache_file="cache_map.json"):
+        self.cache_file = cache_file
+        self.cache = {}
+        self.lock = asyncio.Lock()
+        self._load_cache()
+    
+    def _load_cache(self):
+        """从缓存文件加载翻译对"""
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, "r", encoding="utf-8") as f:
+                    self.cache = json.load(f)
+                logging.info(f"已从 {self.cache_file} 加载 {len(self.cache)} 条翻译缓存")
+            else:
+                logging.info(f"缓存文件 {self.cache_file} 不存在，将创建新缓存")
+        except Exception as e:
+            logging.error(f"加载缓存文件失败: {e}")
+            self.cache = {}
+    
+    def get_name_map(self, keys):
+        """获取指定键的翻译映射"""
+        return {k: self.cache[k] for k in keys if k in self.cache}
+    
+    async def update(self, new_translations):
+        """更新翻译缓存"""
+        if not new_translations:
+            return
+            
+        async with self.lock:
+            self.cache.update(new_translations)
+            await self.save()
+    
+    async def save(self):
+        """保存缓存到文件"""
+        try:
+            async with self.lock:
+                with open(self.cache_file, "w", encoding="utf-8") as f:
+                    json.dump(self.cache, f, ensure_ascii=False)
+                logging.debug(f"已保存 {len(self.cache)} 条翻译缓存到 {self.cache_file}")
+        except Exception as e:
+            logging.error(f"保存缓存文件失败: {e}")
 
 class AsyncRateLimiter:
     def __init__(self, rpm_limit):
@@ -67,6 +106,8 @@ class Config:
         self.rpm_limit = args.rpm_limit or int(os.getenv("RPM_LIMIT", 4)) # Default to 60 RPM
         self.source_locale = args.source_locale or (os.getenv("SOURCE_LOCALE", "en_US"))
         self.target_locale = args.target_locale or (os.getenv("TARGET_LOCALE", "zh_CN"))
+        self.cache_file = args.cache_file or os.getenv("CACHE_FILE", "cache_map.json")
+        self.translation_cache = TranslationCache(self.cache_file)
         self.system_prompt = system_prompt_create(self.source_locale, self.target_locale)
         self.loc_pattern = re.compile(r'.*\.loc$')
         self.localization_target_pattern = re.compile(r'(.+)_.+\.loc$')
@@ -197,8 +238,7 @@ async def task_progress(data, config, semaphore, rate_limiter):
                         function_args_str = tool_call.get("function", {}).get("arguments", "{}")
                         function_args = json.loads(function_args_str)
                         
-                        async with cache_translated_key_pair_lock:
-                            function_response = get_name_map(function_args.get("keyword", []))
+                        function_response = config.translation_cache.get_name_map(function_args.get("keyword", []))
                         
                         message.append({
                             "tool_call_id": tool_call.get("id", ""),
@@ -228,12 +268,9 @@ async def task_progress(data, config, semaphore, rate_limiter):
                     logging.info(f"带有翻译,处理完成：{str(second_res)[:50]}...")
                     
                     if isinstance(second_res, dict):
-                        async with cache_translated_key_pair_lock:
-                            translated_names = second_res.get("translated_name", {})
-                            if translated_names:
-                                cache_translated_key_pair.update(translated_names)
-                                with open("cache_map.json", "w", encoding="utf-8") as outfile:
-                                    outfile.write(json.dumps(cache_translated_key_pair))
+                        translated_names = second_res.get("translated_name", {})
+                        if translated_names:
+                            await config.translation_cache.update(translated_names)
                         return second_res["content"]
                     return second_res["content"]
                 except json.JSONDecodeError:
@@ -314,9 +351,8 @@ async def main():
     file_cnt = [0]
 
     await traval(args.source_dir, args.source_dir, config, semaphore, file_cnt, rate_limiter)
-    # Ensure cache_map.json is written regardless of traversal outcome
-    with open("cache_map.json", "w", encoding="utf-8") as outfile:
-        outfile.write(json.dumps(cache_translated_key_pair))
+    # Ensure cache is saved at the end
+    await config.translation_cache.save()
 
 if __name__ == "__main__":
     asyncio.run(main())
