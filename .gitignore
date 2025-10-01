@@ -4,3 +4,7 @@ srcAssets/**/*
 translated/**/*
 execution.log
 cache_map.json
+ja
+en
+**/*.loc
+__pycache__

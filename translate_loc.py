@@ -10,6 +10,7 @@ from functools import reduce
 from dotenv import load_dotenv
 from litellm import acompletion
 from litellm.utils import trim_messages
+from loc_ast_parser import parse_loc_content, extract_translation_candidates, serialize_to_loc_format, LocASTParser
 
 # ------------------- 加载 .env 配置 -------------------
 load_dotenv()
@@ -26,16 +27,26 @@ class TranslationCache:
         try:
             if os.path.exists(self.cache_file):
                 with open(self.cache_file, "r", encoding="utf-8") as f:
-                    self.cache = json.load(f)
-                logging.info(f"已从 {self.cache_file} 加载 {len(self.cache)} 条翻译缓存")
+                    loaded_cache = json.load(f)
+                    if isinstance(loaded_cache, dict):
+                        self.cache = loaded_cache
+                        logging.info(f"已从 {self.cache_file} 加载 {len(self.cache)} 条翻译缓存")
+                    else:
+                        logging.warning(f"缓存文件格式无效，将创建新缓存")
+                        self.cache = {}
             else:
                 logging.info(f"缓存文件 {self.cache_file} 不存在，将创建新缓存")
+        except json.JSONDecodeError as e:
+            logging.error(f"缓存文件 JSON 格式错误: {e}，将创建新缓存")
+            self.cache = {}
         except Exception as e:
             logging.error(f"加载缓存文件失败: {e}")
             self.cache = {}
     
     def get_name_map(self, keys):
         """获取指定键的翻译映射"""
+        if not keys:
+            return {}
         return {k: self.cache[k] for k in keys if k in self.cache}
     
     async def update(self, new_translations):
@@ -44,18 +55,32 @@ class TranslationCache:
             return
             
         async with self.lock:
-            self.cache.update(new_translations)
-            await self.save()
+            # Filter out None values and empty strings
+            valid_translations = {k: v for k, v in new_translations.items()
+                                if v is not None and str(v).strip()}
+            if valid_translations:
+                self.cache.update(valid_translations)
+                await self._save_unsafe()
     
     async def save(self):
-        """保存缓存到文件"""
+        """保存缓存到文件（线程安全版本）"""
+        async with self.lock:
+            await self._save_unsafe()
+    
+    async def _save_unsafe(self):
+        """保存缓存到文件（内部方法，不获取锁）"""
         try:
-            async with self.lock:
-                with open(self.cache_file, "w", encoding="utf-8") as f:
-                    json.dump(self.cache, f, ensure_ascii=False)
-                logging.debug(f"已保存 {len(self.cache)} 条翻译缓存到 {self.cache_file}")
+            # Create directory if it doesn't exist
+            cache_dir = os.path.dirname(self.cache_file)
+            if cache_dir and not os.path.exists(cache_dir):
+                os.makedirs(cache_dir, exist_ok=True)
+                
+            with open(self.cache_file, "w", encoding="utf-8") as f:
+                json.dump(self.cache, f, ensure_ascii=False, indent=2)
+            logging.info(f"已保存 {len(self.cache)} 条翻译缓存到 {self.cache_file}")
         except Exception as e:
             logging.error(f"保存缓存文件失败: {e}")
+            # Don't re-raise to avoid breaking the translation process
 
 class AsyncRateLimiter:
     def __init__(self, rpm_limit):
@@ -106,7 +131,7 @@ class Config:
         self.rpm_limit = args.rpm_limit or int(os.getenv("RPM_LIMIT", 4)) # Default to 60 RPM
         self.source_locale = args.source_locale or (os.getenv("SOURCE_LOCALE", "en_US"))
         self.target_locale = args.target_locale or (os.getenv("TARGET_LOCALE", "zh_CN"))
-        self.cache_file = args.cache_file or os.getenv("CACHE_FILE", "cache_map.json")
+        self.cache_file = args.cache_file or (os.getenv("CACHE_FILE", "cache_map.json"))
         self.translation_cache = TranslationCache(self.cache_file)
         self.system_prompt = system_prompt_create(self.source_locale, self.target_locale)
         self.loc_pattern = re.compile(r'.*\.loc$')
@@ -116,17 +141,21 @@ class Config:
 # ------------------- 默认系统提示词 -------------------
 def system_prompt_create(source_locale, target_locale):
     return f"""
-    你是drova这款游戏的翻译编译器，请帮我将给定的的{source_locale}输入翻译为{target_locale}输出。针对人名与地名，请通过 Function Call 调用get_name_map来获取；如果数据库中不存在该人名与地名，请翻译该人名与地名并在结果(content与translated_name均需要被体现出来,content是带有被翻译地名与人名的更完整一些的翻译)中返回出去（简单来说即，先查缓存，如果有就取缓存，没有就自己翻译并告诉其他人“该处翻译已完成”）。请严格作为编译器执行，返回跟原编码格式相同的格式，不要输出任何无关内容。
-    不要尝试修复、删除任何看起来错误的语法，如： "Plh_35 {{"、"Plh_35 {{ The chains are firmly aff"、"}}"。
-    只需要做好自己翻译的工作即可。 
+    你是drova这款游戏的翻译编译器，请帮我将给定的{source_locale}文本翻译为{target_locale}输出。
+    
+    针对人名与地名，请通过 Function Call 调用get_name_map来获取；如果数据库中不存在该人名与地名，请翻译该人名与地名并在结果中返回出去。
+    
     *** 输出格式
-    数据格式严格限制为json格式，json schema为{{content: string|null, translated_name: {{[key: string: string | null]}}}}。
-    content的值是翻译产物，translated_name的值是被翻译的人名与地名（可能为空json对象）。content中需要被转义处理的字符请一定转义，以免后续解析json的程序出错。
-    如果待翻译文本中没有需要被翻译的人名与地名，请保持translated_name为空对象。不要输出任何markdown符号。
-    *** 示例输入:
+    你的输出内容必须为有效的JSON格式，包含两个字段：
+    - content: 翻译后的完整文本内容
+    - translated_name: 被翻译的人名与地名映射（可能为空对象）
+    
+    示例输入:
     Achievement_ImmersiveMod_name {{ Iron }}
-    ***示例输出：
-    {{content: "Achievement_ImmersiveMod_name {{ 铁 }}", translated_name: {{}}}}。
+    
+    示例输出：
+    {{"content": "Achievement_ImmersiveMod_name {{ 铁 }}", "translated_name": {{}}}}
+    
     请结合这款游戏的背景进行翻译，这款游戏的背景如下：
     "Drova - Forsaken Kin" 是一款受经典黑暗风格和凯尔特神话神秘魅力启发的像素风格动作角色扮演游戏。进入一个精心制作的开放世界，你的选择和行动将影响环境。一个社会发现了已经灭亡帝国的力量：捕捉并支配掌管自然的灵魂。然而，余下的灵魂因为愤怒而分裂。你将站在哪一边？入两个阵营之一，每个阵营都有其自己的价值观并追求各自的目标。你的选择将对整个游戏产生影响，并改变整个故事。所有的决定都伴随着代价。遇见导师并学习各种技能，但也要小心敌人和背叛。危险的景观中开辟自己的道路，完成任务、进行交易、收集和制作装备。你将从无到有，从无名之辈成长起来。研究周围的环境，利用周围的线索揭示谜团并变得更强。只有你的战斗技能才能将你与必然的死亡隔开。索自然，封印掌控它的灵魂力量。学会如何将它们为你所用，但也要准备好迎接这些灵魂的愤怒，它们的愤怒将在你周围的世界中显现。
     """.strip()
@@ -148,6 +177,67 @@ def init_logging(log_file):
         file_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
+
+# ------------------- 预处理函数 -------------------
+def extract_pure_game_text(content: str) -> tuple[str, list[tuple[str, str]]]:
+    """
+    使用LocASTParser提取纯游戏文本内容，去除键值对结构
+    返回纯文本内容和原始条目结构，便于后续重新组装
+    
+    Returns:
+        tuple: (pure_text, original_entries)
+    """
+    parser = LocASTParser()
+    entries = parser.parse_file(content)
+    
+    # 提取所有需要翻译的文本值
+    pure_texts = []
+    for key, value in entries:
+        # 只提取需要翻译的文本（不包含非ASCII字符的文本）
+        if not any(ord(c) > 127 for c in value):
+            pure_texts.append(value)
+    
+    # 将文本合并为纯文本格式，便于LLM处理
+    return "\n".join(pure_texts), entries
+
+def reassemble_translated_content(translated_text: str, original_entries: list[tuple[str, str]]) -> str:
+    """
+    将翻译后的纯文本重新组装回原始序列化格式
+    
+    Args:
+        translated_text: LLM返回的翻译后纯文本
+        original_entries: 原始解析的条目列表
+        
+    Returns:
+        重新组装后的.loc格式内容
+    """
+    parser = LocASTParser()
+    
+    # 分割翻译后的文本行
+    translated_lines = translated_text.strip().split('\n')
+    
+    # 创建新的条目列表
+    new_entries = []
+    translated_index = 0
+    
+    for key, original_value in original_entries:
+        # 检查原始值是否需要翻译
+        if not any(ord(c) > 127 for c in original_value):
+            # 需要翻译的条目，使用翻译后的文本
+            if translated_index < len(translated_lines):
+                new_value = translated_lines[translated_index].strip()
+                translated_index += 1
+            else:
+                # 如果没有足够的翻译行，保留原始值
+                new_value = original_value
+        else:
+            # 不需要翻译的条目（可能已经包含非ASCII字符），保留原始值
+            new_value = original_value
+        
+        new_entries.append((key, new_value))
+    
+    # 序列化回.loc格式
+    return parser.serialize_entries(new_entries)
 
 # ------------------- 翻译任务 -------------------
 def get_targetpath(src_file, src_root, dst_root):
@@ -181,6 +271,18 @@ async def task_progress(data, config, semaphore, rate_limiter):
     async with semaphore:
         logging.info(f"开始处理片段：{data[:50]}...")
         await rate_limiter.acquire() # Wait for rate limiter
+        
+        # 预处理：提取纯游戏文本内容和原始结构
+        pure_game_text, original_entries = extract_pure_game_text(data)
+        logging.info(f"预处理完成：提取到{len(pure_game_text)}字符的纯游戏文本，{len(original_entries)}个条目")
+        
+        # Use AST parser to analyze the content
+        analysis = extract_translation_candidates(data)
+        logging.info(f"AST分析结果：需要翻译{len(analysis['to_translate'])}条，发现{len(analysis['names'])}个潜在名称")
+        
+        # Prepare names for function call
+        names_to_check = analysis['names']
+        
         tools = [
             {
                 "type": "function",
@@ -200,33 +302,47 @@ async def task_progress(data, config, semaphore, rate_limiter):
                 },
             }
         ]
+        
+        # Prepare the prompt with analyzed names and pure game text
+        enhanced_prompt = f"{config.system_prompt}\n\n需要翻译的文本：\n{pure_game_text}"
+        if names_to_check:
+            enhanced_prompt += f"\n\n注意：文本中可能包含以下名称需要翻译：{', '.join(names_to_check)}"
+        
         message = trim_messages([
-                {"content": config.system_prompt, "role": "system"},
-                {"content": data, "role": "user"}
+                {"content": enhanced_prompt, "role": "system"},
+                {"content": pure_game_text, "role": "user"}
             ])
         try:
             response = await acompletion(
                 model=config.model,
+                extra_body={ "enable_thinking": False },
                 api_base=config.api_base,
                 api_key=config.api_key,
                 tools=tools,
                 response_format={ "type": "json_object" },
-                # format="json",
+                temperature=0,
                 messages=message,
                 max_tokens=8096,
             )
-            
+
+            # Debug: Log response structure
+            # logging.info(f"Raw response: {response}")
+            if not hasattr(response, "choices") or not response.choices:
+                logging.error("Response has no 'choices' attribute or is empty.")
+                return ""
+            if not hasattr(response.choices[0], "message") or response.choices[0].message is None:
+                logging.error("First choice has no 'message' attribute or is None.")
+                return ""
+
             # check if model wanted to call a function
             response_message = response.choices[0].message
-            content = response_message.get("content", "")
+            
+            content = response_message.content or ""
             logging.info(f"Received response: {content[:100]}...")
             logging.info(f"Finish Reason: {response.choices[0].finish_reason}")
             
-                
-            
-                
             # Check for tool_calls in a safer way
-            tool_calls = response_message.get("tool_calls", [])
+            tool_calls = response_message.tool_calls or []
             logging.info(f"Received tool_calls: {tool_calls}...")
             if tool_calls:
                 # Add the assistant's message to the conversation
@@ -256,7 +372,8 @@ async def task_progress(data, config, semaphore, rate_limiter):
                     api_base=config.api_base,
                     response_format={ "type": "json_object" },
                     api_key=config.api_key,
-                    # format="json",
+                    extra_body={ "enable_thinking": False },
+                    temperature=0,
                     messages=message,
                     max_tokens=8096,
                 )
@@ -271,8 +388,12 @@ async def task_progress(data, config, semaphore, rate_limiter):
                         translated_names = second_res.get("translated_name", {})
                         if translated_names:
                             await config.translation_cache.update(translated_names)
-                        return second_res["content"]
-                    return second_res["content"]
+                        
+                        # 后处理：重新组装翻译内容
+                        translated_content = second_res["content"] or ""
+                        reassembled_content = reassemble_translated_content(translated_content, original_entries)
+                        return reassembled_content
+                    return second_res["content"] or ""
                 except json.JSONDecodeError:
                     logging.warning(f"Second response not valid JSON: {second_content[:100]}")
                     return ""
@@ -285,7 +406,11 @@ async def task_progress(data, config, semaphore, rate_limiter):
                 try:
                     if isinstance(res, dict):
                         logging.info(f"处理完成：{str(res)[:50]}...")
-                    return res["content"]
+                    
+                    # 后处理：重新组装翻译内容
+                    translated_content = res["content"] or ""
+                    reassembled_content = reassemble_translated_content(translated_content, original_entries)
+                    return reassembled_content
                 except Exception as e:
                     logging.error(f"Error processing result: {e}")
                     return ""
@@ -298,11 +423,14 @@ async def file_progress(file, source_dir, config, semaphore, file_cnt, rate_limi
         await traval(file.path, source_dir, config, semaphore, file_cnt, rate_limiter)
     else:
         if config.loc_pattern.match(file.name):
-            with open(file.path, encoding="utf-8") as f:
+            with open(file.path,"r", encoding="utf-8") as f:
                 file_cnt[0] += 1
                 this_file_cnt = file_cnt[0]
-                logging.info(f"----- 开始处理第{this_file_cnt}个文件 {file.name} -----")
                 dst_file = get_targetpath(file.path, source_dir, config.target_path)
+                dst_file = re.sub(config.localization_target_pattern,f"\\1_{config.target_locale}.loc",dst_file)
+            
+                logging.info(f"----- 开始处理第{this_file_cnt}个文件 {file.name} 路径为{dst_file} -----")                
+                # 修正跳过文件逻辑：确保生成的目标文件名与实际输出文件名完全一致
                 if os.path.exists(dst_file):
                     logging.info(f"文件 {file.name} 已存在，跳过")
                     return
@@ -311,8 +439,8 @@ async def file_progress(file, source_dir, config, semaphore, file_cnt, rate_limi
                 tasks = [(task_progress(c, config, semaphore, rate_limiter)) for c in chunks if c.strip()]
                 translated_chunks = await asyncio.gather(*tasks)
                 translated_text = "\n\n".join(translated_chunks)
-                
-                write_file_preserve_structure(translated_text, file.path, source_dir, config.target_path,config)
+                # 修正文件写入逻辑：确保生成的目标文件名与跳过检查逻辑完全一致
+                write_file_preserve_structure(translated_text, file.path, source_dir, config.target_path, config)
                 logging.info(f"----- 结束处理第{this_file_cnt}个文件 {file.name} -----")
 
 async def traval(dir_path, source_dir, config, semaphore, file_cnt, rate_limiter):
@@ -337,6 +465,7 @@ async def main():
     parser.add_argument("--rpm-limit", type=int, help="每分钟请求数限制 (RPM)，0 或负数表示无限制")
     parser.add_argument("--source-locale", help="待翻译语言")
     parser.add_argument("--target-locale", help="翻译结果语言")
+    parser.add_argument("--cache-file", help="翻译缓存文件路径")
 
     args = parser.parse_args()
     config = Config(args)
